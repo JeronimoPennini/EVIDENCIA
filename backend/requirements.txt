@@ -1,0 +1,12 @@
+# EvidencIA — Dependencias del backend
+# Instalación: pip install -r requirements.txt
+
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-dotenv>=1.0.0
+pydantic-settings>=2.16.0
+httpx>=0.28.0
+pydantic>=2.13.5
+google-genai>=2.33.0        # SDK oficial actual (reemplaza google-generativeai)
+pytest>=8.0.0
+pytest-asyncio>=0.24.0
