@@ -3,9 +3,14 @@ EvidencIA — Router de búsqueda
 Endpoint: POST /api/v1/search
 """
 
+import logging
+
 from fastapi import APIRouter, HTTPException
+from app.errors import resumen_error
 from app.models.search import SearchRequest, SearchResponse, PicoSearchRequest
 from app.services import pubmed_service, pico_service
+
+logger = logging.getLogger("evidencia.search")
 
 router = APIRouter(prefix="/api/v1", tags=["Búsqueda"])
 
@@ -28,7 +33,8 @@ async def buscar(request: SearchRequest) -> SearchResponse:
         )
         return resultado
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Error al consultar PubMed: {str(e)}")
+        logger.exception("Fallo la consulta a PubMed")
+        raise HTTPException(status_code=502, detail=resumen_error(e))
 
 
 @router.post(
@@ -49,6 +55,5 @@ async def buscar_pico(request: PicoSearchRequest) -> SearchResponse:
     try:
         return await pico_service.procesar_busqueda_pico(request)
     except Exception as e:
-        raise HTTPException(
-            status_code=502, detail=f"Error al procesar la búsqueda PICO: {str(e)}"
-        )
+        logger.exception("Fallo la búsqueda PICO")
+        raise HTTPException(status_code=502, detail=resumen_error(e))

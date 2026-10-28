@@ -4,6 +4,7 @@ Consulta la API NCBI E-utilities para buscar y recuperar artículos científicos
 Documentación oficial: https://www.ncbi.nlm.nih.gov/books/NBK25497/
 """
 
+import logging
 import ssl
 import httpx
 import xml.etree.ElementTree as ET
@@ -22,15 +23,66 @@ from app.config import get_settings
 
 NCBI_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 
+logger = logging.getLogger(__name__)
+
+# Una API key inválida no puede tumbar la app: NCBI contesta 400 a cualquier
+# request que la lleve puesta. Al detectarlo, seguimos sin clave (3 req/s).
+_CLAVE_INVALIDA = False
+
+
+def clave_ncbi_activa() -> bool:
+    """True si conviene mandar `api_key` en los requests a E-utilities."""
+    settings = get_settings()
+    clave = (settings.ncbi_api_key or "").strip()
+    return bool(clave) and not clave.startswith("tu_clave") and not _CLAVE_INVALIDA
+
+
+def estado_ncbi() -> dict:
+    """Diagnóstico para /health, sin exponer el valor de la clave."""
+    settings = get_settings()
+    clave = (settings.ncbi_api_key or "").strip()
+    return {
+        "api_key_configurada": bool(clave) and not clave.startswith("tu_clave"),
+        "api_key_aceptada": not _CLAVE_INVALIDA,
+        "limite_por_segundo": 10 if clave_ncbi_activa() else 3,
+        "email_reportado": settings.ncbi_email,
+    }
+
+
+async def _get(client: httpx.AsyncClient, endpoint: str, params: dict) -> httpx.Response:
+    """
+    GET a E-utilities con tolerancia a una API key inválida o caducada.
+
+    NCBI responde 400 {"error":"API key invalid"} a *todos* los requests que la
+    incluyan, así que sin este respaldo la app queda inutilizada por un error de
+    configuración. Si el reintento sin clave funciona, se desactiva la clave.
+    """
+    global _CLAVE_INVALIDA
+    url = f"{NCBI_BASE}/{endpoint}"
+    resp = await client.get(url, params=params)
+
+    if resp.status_code in (400, 403) and "api_key" in params:
+        sin_clave = {k: v for k, v in params.items() if k != "api_key"}
+        reintento = await client.get(url, params=sin_clave)
+        if reintento.status_code < 400:
+            _CLAVE_INVALIDA = True
+            logger.warning(
+                "NCBI rechazó la NCBI_API_KEY configurada; sigo sin clave (3 req/s). "
+                "Revisá la variable en el hosting."
+            )
+            return reintento
+
+    resp.raise_for_status()
+    return resp
+
 
 def _build_params(extra: dict) -> dict:
     """Agrega claves comunes a todos los requests NCBI."""
     settings = get_settings()
     params = {"retmode": "json", "tool": "EvidencIA", "email": settings.ncbi_email}
-    # Solo enviar api_key si está configurada y no es un placeholder
-    api_key = settings.ncbi_api_key.strip() if settings.ncbi_api_key else ""
-    if api_key and not api_key.startswith("tu_clave"):
-        params["api_key"] = api_key
+    # Solo enviar api_key si está configurada, no es placeholder y NCBI la acepta
+    if clave_ncbi_activa():
+        params["api_key"] = settings.ncbi_api_key.strip()
     params.update(extra)
     return params
 
@@ -56,8 +108,7 @@ async def _esearch(
     if date_to:
         params["maxdate"] = date_to
 
-    resp = await client.get(f"{NCBI_BASE}/esearch.fcgi", params=params)
-    resp.raise_for_status()
+    resp = await _get(client, "esearch.fcgi", params)
     result = resp.json().get("esearchresult", {})
     return int(result.get("count", 0)), list(result.get("idlist", []))
 
@@ -175,8 +226,7 @@ async def _fetch_articulos(client: httpx.AsyncClient, pmids: list[str]) -> list[
     # Para efetch en XML necesitamos retmode=xml (sobreescribir json por defecto)
     fetch_params["retmode"] = "xml"
 
-    fetch_resp = await client.get(f"{NCBI_BASE}/efetch.fcgi", params=fetch_params)
-    fetch_resp.raise_for_status()
+    fetch_resp = await _get(client, "efetch.fcgi", fetch_params)
 
     return _parsear_xml(fetch_resp.text)
 

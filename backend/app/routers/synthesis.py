@@ -3,9 +3,14 @@ EvidencIA — Router de síntesis
 Endpoint: POST /api/v1/synthesize
 """
 
+import logging
+
 from fastapi import APIRouter, HTTPException
+from app.errors import resumen_error
 from app.models.synthesis import SynthesisRequest, SynthesisResponse
 from app.services import synthesis_service
+
+logger = logging.getLogger("evidencia.sintesis")
 
 router = APIRouter(prefix="/api/v1", tags=["Síntesis IA"])
 
@@ -27,6 +32,8 @@ async def sintetizar(request: SynthesisRequest) -> SynthesisResponse:
         resultado = await synthesis_service.sintetizar(request)
         return resultado
     except ValueError as e:
+        # Mensajes propios de validación: no contienen URLs ni secretos.
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Error en la síntesis: {str(e)}")
+        logger.exception("Fallo la síntesis")
+        raise HTTPException(status_code=502, detail=resumen_error(e))

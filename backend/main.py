@@ -51,7 +51,7 @@ app.include_router(synthesis.router)
 @app.get("/health", tags=["Sistema"], summary="Estado del servicio")
 async def health_check():
     """Verifica que el backend está activo y muestra la configuración activa."""
-    from app.services import decs_service
+    from app.services import decs_service, pubmed_service
     from app.services.pico_service import _gemini_disponible
 
     return {
@@ -59,9 +59,7 @@ async def health_check():
         "version": "0.1.0",
         "servicio": "EvidencIA API",
         "gemini_configurado": _gemini_disponible(settings),
-        "ncbi_api_key_configurada": bool(
-            (settings.ncbi_api_key or "").strip()
-        ) and not settings.ncbi_api_key.startswith("tu_clave"),
+        "ncbi": pubmed_service.estado_ncbi(),
         "modelo_ia": settings.gemini_model,
         "vocabulario": await decs_service.estado_vocabulario(),
         # Diagnóstico de despliegue: confirma que el origen público está autorizado.
