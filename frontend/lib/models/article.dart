@@ -140,6 +140,7 @@ class SearchResponse {
   final Map<String, int> totalesPorNivel;
   final Map<String, int> distribucionDevueltos;
   final bool prioridadCalidad;
+  final String? avisoIa;
 
   const SearchResponse({
     required this.query,
@@ -154,6 +155,7 @@ class SearchResponse {
     this.totalesPorNivel = const {},
     this.distribucionDevueltos = const {},
     this.prioridadCalidad = false,
+    this.avisoIa,
   });
 
   factory SearchResponse.fromJson(Map<String, dynamic> json) => SearchResponse(
@@ -177,6 +179,7 @@ class SearchResponse {
         totalesPorNivel: _enterosPorClave(json['totales_por_nivel']),
         distribucionDevueltos: _enterosPorClave(json['distribucion_devueltos']),
         prioridadCalidad: json['prioridad_calidad'] as bool? ?? false,
+        avisoIa: json['aviso_ia'] as String?,
       );
 
   static Map<String, int> _enterosPorClave(Object? valor) {

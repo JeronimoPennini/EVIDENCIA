@@ -98,3 +98,35 @@ async def test_endpoint_pico_integration():
     assert "pregunta_clinica" in data
     assert "query_pubmed" in data
     assert data["total_encontrados"] >= 0
+
+
+def test_la_ia_que_falla_deja_de_ser_silenciosa(monkeypatch):
+    """
+    Antes el except desnudo devolvía el fallback sin avisar: la app mostraba
+    resultados "normales" aunque Gemini estuviera muerto. Ahora el aviso viaja
+    en la respuesta para que el usuario sepa que buscó sin optimización por IA.
+    """
+    import asyncio
+
+    from app.services import gemini_service, pico_service
+
+    async def _reventar(prompt):
+        raise gemini_service.ClaveGeminiInvalida()
+
+    monkeypatch.setattr(pico_service, "_gemini_disponible", lambda settings: True)
+    monkeypatch.setattr(gemini_service, "generar_sintesis", _reventar)
+    monkeypatch.setattr(pico_service, "ultimo_aviso_ia", None, raising=True)
+
+    pregunta, query = asyncio.run(
+        pico_service.traducir_y_optimizar_pico(
+            poblacion="adultos con hipertensión",
+            intervencion="inhibidores ECA",
+            comparacion="",
+            outcome="mortalidad",
+        )
+    )
+
+    assert query == construir_query_fallback(
+        "adultos con hipertensión", "inhibidores ECA", "", "mortalidad", "all"
+    )
+    assert pico_service.ultimo_aviso_ia and "GEMINI_API_KEY" in pico_service.ultimo_aviso_ia

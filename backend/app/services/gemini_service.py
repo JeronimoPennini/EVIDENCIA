@@ -12,6 +12,7 @@ Dos detalles de entorno que rompían la llamada y se degradaban en silencio:
 """
 
 import asyncio
+import logging
 import ssl
 
 from google import genai
@@ -35,6 +36,53 @@ _TRANSITORIOS = ("503", "429", "unavailable", "resource_exhausted", "high demand
 
 # Modelo que respondió por última vez (para reportarlo en la respuesta).
 _modelo_activo: str = ""
+
+# La clave fue rechazada por Google (401) en el último intento.
+_clave_rechazada: bool = False
+
+
+class ClaveGeminiInvalida(RuntimeError):
+    """
+    Google rechazó la API key (401 UNAUTHENTICATED).
+
+    No es un problema de red ni de saturación: ningún modelo va a responder con
+    esta clave, por eso se corta la cadena de reintentos y se informa al usuario
+    qué variable hay que corregir.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            "La clave de Gemini (GEMINI_API_KEY) no es válida o fue revocada. "
+            "Generá una nueva en https://aistudio.google.com/app/apikey y "
+            "actualizala en el panel de Variables de entorno del servidor."
+        )
+
+
+def _es_fallo_de_clave(error: Exception) -> bool:
+    """401 / 'API key not valid': la clave no existe, está mal copiada o revocada."""
+    texto = str(error).lower()
+    return any(
+        marca in texto
+        for marca in ("unauthenticated", "api key not valid", "invalid api key", "401")
+    )
+
+
+def clave_rechazada() -> bool:
+    """True si Google devolvió 401 para la clave configurada en este proceso."""
+    return _clave_rechazada
+
+
+def estado_gemini() -> dict:
+    """Diagnóstico de la clave para /health (nunca devuelve la clave)."""
+    settings = get_settings()
+    clave = (settings.gemini_api_key or "").strip()
+    configurada = bool(clave) and not clave.startswith("tu_clave")
+    return {
+        "api_key_configurada": configurada,
+        "api_key_aceptada": configurada and not _clave_rechazada,
+        "modelo_configurado": settings.gemini_model,
+        "modelo_usado": _modelo_activo or None,
+    }
 
 
 def _get_client() -> genai.Client:
@@ -74,7 +122,7 @@ async def generar_sintesis(prompt: str) -> str:
     Prueba el modelo configurado y, si devuelve 404 (obsoleto) o 503/429 (saturado),
     intenta con los modelos de respaldo antes de fallar.
     """
-    global _modelo_activo
+    global _modelo_activo, _clave_rechazada
     cliente = _get_client()
     errores: list[str] = []
 
@@ -98,6 +146,13 @@ async def generar_sintesis(prompt: str) -> str:
                 break
             except Exception as error:  # noqa: BLE001 - se re-intenta con otro modelo
                 errores.append(f"{modelo}: {type(error).__name__}: {str(error)[:160]}")
+                if _es_fallo_de_clave(error):
+                    # Probar otros modelos no sirve: Google rechaza la clave, no el modelo.
+                    _clave_rechazada = True
+                    logging.getLogger(__name__).error(
+                        "Gemini rechazó la API key: %s", str(error)[:200]
+                    )
+                    raise ClaveGeminiInvalida() from error
                 if _es_transitorio(error) and intento + 1 < reintentos:
                     await asyncio.sleep(2.0 * (intento + 1))
                     continue

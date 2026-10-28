@@ -12,6 +12,11 @@ import httpx
 
 def resumen_error(exc: Exception) -> str:
     """Descripción segura (sin URLs ni secretos) de una excepción de upstream."""
+    from app.services.gemini_service import ClaveGeminiInvalida
+
+    if isinstance(exc, ClaveGeminiInvalida):
+        # El exception ya trae el mensaje accionable; no vuelca el 401 crudo de Google.
+        return str(exc)
     if isinstance(exc, httpx.HTTPStatusError):
         codigo = exc.response.status_code if exc.response is not None else "?"
         servicio = _nombre_servicio(exc.request.url.host if exc.request is not None else "")

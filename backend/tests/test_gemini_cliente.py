@@ -135,3 +135,71 @@ def test_sin_ningun_modelo_disponible_falla_visiblemente(monkeypatch):
 
     with pytest.raises(RuntimeError, match="Gemini no pudo generar"):
         asyncio.run(gemini_service.generar_sintesis("prompt"))
+
+
+# ---------------------------------------------------------------- 401 / clave inválida
+
+
+def _preparar_401(monkeypatch):
+    monkeypatch.setattr(gemini_service, "_candidatos", lambda: ["modelo-1", "respaldo-1"])
+    monkeypatch.setattr(gemini_service, "_modelo_activo", "", raising=True)
+    monkeypatch.setattr(gemini_service, "_clave_rechazada", False, raising=True)
+
+
+def test_clave_invalida_no_gasta_los_modelos_de_respaldo(monkeypatch):
+    """Un 401 rechaza la clave, no el modelo: reintentar con otros es tiempo perdido."""
+    _preparar_401(monkeypatch)
+    registro = []
+    _instalar(
+        monkeypatch,
+        {"modelo-1": RuntimeError("401 UNAUTHENTICATED. {'error': {'message': 'API key not valid'}}")},
+        registro,
+    )
+
+    with pytest.raises(gemini_service.ClaveGeminiInvalida):
+        asyncio.run(gemini_service.generar_sintesis("prompt"))
+
+    assert [m for m, _, _ in registro] == ["modelo-1"]
+    assert gemini_service.clave_rechazada() is True
+
+
+def test_el_401_dice_quien_es_el_culpable_y_donde_arreglarlo(monkeypatch):
+    """El usuario necesita la variable a corregir, no el JSON crudo de Google."""
+    _preparar_401(monkeypatch)
+    _instalar(
+        monkeypatch,
+        {"modelo-1": RuntimeError("ClientError: 401 UNAUTHENTICATED. API key not valid.")},
+        [],
+    )
+
+    with pytest.raises(gemini_service.ClaveGeminiInvalida) as info:
+        asyncio.run(gemini_service.generar_sintesis("prompt"))
+
+    mensaje = str(info.value)
+    assert "GEMINI_API_KEY" in mensaje
+    assert "aistudio.google.com" in mensaje
+    assert "UNAUTHENTICATED" not in mensaje  # el detalle crudo va al log, no al cliente
+
+
+def test_resumen_error_devuelve_el_mensaje_amigable_del_401():
+    from app.errors import resumen_error
+
+    assert "GEMINI_API_KEY" in resumen_error(gemini_service.ClaveGeminiInvalida())
+
+
+def test_estado_gemini_reporta_sin_exponer_la_clave(monkeypatch):
+    from app.config import Settings
+
+    monkeypatch.setattr(
+        gemini_service, "get_settings", lambda: Settings(gemini_api_key="AIza-fake-para-test")
+    )
+    monkeypatch.setattr(gemini_service, "_clave_rechazada", False, raising=True)
+
+    estado = gemini_service.estado_gemini()
+
+    assert estado["api_key_configurada"] is True
+    assert estado["api_key_aceptada"] is True
+    assert "AIza-fake-para-test" not in str(estado)
+
+    monkeypatch.setattr(gemini_service, "_clave_rechazada", True, raising=True)
+    assert gemini_service.estado_gemini()["api_key_aceptada"] is False

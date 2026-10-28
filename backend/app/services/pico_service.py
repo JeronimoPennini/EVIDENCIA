@@ -6,8 +6,10 @@ formula la pregunta clínica estructurada en lenguaje natural.
 """
 
 from typing import Tuple, Optional
+import logging
 import re
 
+from app.errors import resumen_error
 from app.models.search import PicoSearchRequest, SearchResponse, TerminoClinico, ArticleResult
 from app.services import pubmed_service, gemini_service, decs_service, evidence_service
 from app.services.diccionario_es_en import DICCIONARIO_MEDICO, STOP_WORDS_ES, traducir_termino
@@ -15,6 +17,9 @@ from app.config import get_settings
 
 # Compatibilidad con llamados antiguos dentro del proyecto
 _traducir_y_limpiar_termino = traducir_termino
+
+# Motivo por el cual la última búsqueda PICO no usó IA (None si usó o no se pidió).
+ultimo_aviso_ia: Optional[str] = None
 
 
 def construir_pregunta_clinica(
@@ -156,14 +161,23 @@ QUERY_PUBMED: ("Heart Failure"[MeSH Terms] AND "preserved ejection fraction"[tia
 
         query_final = _aplicar_filtro_estudio(query, filtro_estudio)
         return pregunta, query_final
-    except Exception:
+    except Exception as error:  # noqa: BLE001 - la búsqueda sigue sin IA, pero se avisa
+        # Antes esto se tragía en silencio: el usuario veía resultados "normales" sin
+        # saber que la optimización por IA había muerto (clave inválida, cuota, red).
+        global ultimo_aviso_ia
+        ultimo_aviso_ia = resumen_error(error)
+        logging.getLogger(__name__).warning(
+            "No se pudo optimizar la búsqueda con IA: %s", str(error)[:200]
+        )
         return pregunta_fallback, query_fallback
 
 
 def _gemini_disponible(settings) -> bool:
-    """True si hay una clave Gemini real configurada."""
+    """True si hay una clave Gemini real y Google todavía no la rechazó."""
     clave = (settings.gemini_api_key or "").strip()
-    return bool(clave) and not clave.startswith("tu_clave")
+    if not clave or clave.startswith("tu_clave"):
+        return False
+    return not gemini_service.clave_rechazada()
 
 
 def _respuesta_vacia(query: str, pregunta: str) -> SearchResponse:
@@ -199,17 +213,27 @@ async def procesar_busqueda_pico(request: PicoSearchRequest) -> SearchResponse:
     correcciones: list[str] = []
 
     # 1) IA (opcional)
-    if request.optimizar_con_ia and _gemini_disponible(settings):
-        pregunta_ia, query_ia = await traducir_y_optimizar_pico(
-            poblacion=request.poblacion,
-            intervencion=request.intervencion,
-            comparacion=request.comparacion or "",
-            outcome=request.outcome,
-            filtro_estudio=request.filtro_estudio or "all",
-        )
-        if query_ia and query_ia != query:
-            pregunta, query = pregunta_ia, query_ia
-            usado_ia = True
+    if request.optimizar_con_ia:
+        global ultimo_aviso_ia
+        ultimo_aviso_ia = None
+        if not _gemini_disponible(settings):
+            ultimo_aviso_ia = (
+                str(gemini_service.ClaveGeminiInvalida())
+                if gemini_service.clave_rechazada()
+                else "GEMINI_API_KEY no está configurada en el servidor, "
+                "así que la búsqueda usó sólo el diccionario y DeCS/MeSH."
+            )
+        else:
+            pregunta_ia, query_ia = await traducir_y_optimizar_pico(
+                poblacion=request.poblacion,
+                intervencion=request.intervencion,
+                comparacion=request.comparacion or "",
+                outcome=request.outcome,
+                filtro_estudio=request.filtro_estudio or "all",
+            )
+            if query_ia and query_ia != query:
+                pregunta, query = pregunta_ia, query_ia
+                usado_ia = True
 
     # 2) Vocabulario controlado DeCS/MeSH
     if request.usar_vocabulario_controlado:
@@ -327,6 +351,7 @@ def _armar_respuesta(
         pregunta_clinica=pregunta,
         query_pubmed=query,
         usado_ia=usado_ia,
+        aviso_ia=None if usado_ia else ultimo_aviso_ia,
         terminos_clinicos=terminos,
         correcciones_vocabulario=correcciones,
         niveles_consultados=niveles if prioridad else [],

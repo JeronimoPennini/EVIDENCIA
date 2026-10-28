@@ -66,6 +66,10 @@ class SearchResponse(BaseModel):
     pregunta_clinica: Optional[str] = None
     query_pubmed: Optional[str] = None
     usado_ia: bool = False
+    aviso_ia: Optional[str] = Field(
+        default=None,
+        description="Por qué no se usó IA cuando se pidió (clave inválida, cuota, red).",
+    )
     terminos_clinicos: list[TerminoClinico] = Field(
         default_factory=list, description="Términos PICO resueltos contra DeCS/MeSH"
     )
