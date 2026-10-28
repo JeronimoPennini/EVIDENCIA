@@ -1,26 +1,25 @@
 # EvidencIA — Blueprint de Render (https://render.com/docs/blueprint-spec)
 #
-# ⚠️ Render solo lee este archivo si está en la RAÍZ del repositorio que conectás.
-# Tu repo git es la carpeta `DRAIV` (EvidencIA es un subdirectorio), así que:
-#     copy EvidencIA\render.yaml ..\render.yaml
-# y ajustá `rootDir` si cambiás la estructura.
-#
-# Alternativa sin blueprint: crear el servicio desde el dashboard de Render con
-#     Root Directory   = EvidencIA/backend
+# Este archivo ya está en la raíz del repo `EVIDENCIA`, así que Render lo detecta
+# al conectar el repositorio (New → Blueprint). Como alternativa, un Web Service manual:
+#     Repository       = https://github.com/JeronimoPennini/EVIDENCIA
+#     Root Directory   = backend
 #     Runtime          = Python
 #     Build Command    = pip install -r requirements.txt
 #     Start Command    = python server_start.py
 #     Health Check     = /health
 #
 # Después de desplegar, copiá la URL pública (https://*.onrender.com) y:
-#   1) la agregás a ALLOWED_ORIGINS en Render (Environment)
-#   2) la pasás al frontend:  flutter build web --release --dart-define=API_BASE_URL=<esa URL>
+#   1) agregá el origen del frontend a ALLOWED_ORIGINS en Render (Environment), p.ej.
+#      https://jeronimopennini.github.io
+#   2) pasala al frontend:  flutter build web --release --dart-define=API_BASE_URL=<esa URL>
+#      (o simply  build_web.bat <esa URL>)
 
 services:
   - type: web
     name: evidencia-api
     runtime: python
-    rootDir: EvidencIA/backend
+    rootDir: backend
     plan: free
     region: oregon
     buildCommand: pip install -r requirements.txt
@@ -38,8 +37,9 @@ services:
       - key: DECS_API_KEY
         sync: false
       # --- Configuración pública ---
-      # Pegá acá el origen donde cuelgues el frontend, separado por comas.
+      # localhost alcanza para probar la API publicada desde tu Flutter local.
+      # Sumá el dominio público cuando el PWA esté en el aire, separado por coma.
       - key: ALLOWED_ORIGINS
-        value: http://localhost:3000
+        value: http://localhost:3000,http://localhost:8080,https://jeronimopennini.github.io
       - key: PRIORIZAR_CALIDAD_POR_DEFECTO
         value: "true"

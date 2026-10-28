@@ -8,8 +8,9 @@
 ## Estructura del proyecto
 
 ```
-EvidencIA/
-├── render.yaml       # Blueprint de Render (copiar a la raíz del repo)
+EVIDENCIA/
+├── .github/workflows/web.yml   # CI: build Flutter web → GitHub Pages
+├── render.yaml       # Blueprint de Render (está en la raíz del repo a propósito)
 ├── build_web.bat     # flutter build web --dart-define=API_BASE_URL=...
 ├── iniciar_proyecto.bat / iniciar_backend.bat / iniciar_frontend.bat
 ├── backend/          # API Python + FastAPI
@@ -170,13 +171,14 @@ nueva es un backend público con HTTPS, porque las claves API **nunca** viajan a
 
 ### 1. Backend público (Render free)
 
-Opción blueprint (recomendada): copiá `EvidencIA/render.yaml` a la **raíz del repositorio**
-que conectes (en tu caso `DRAIV/`, porque el repo git es el padre) y creá el Blueprint.
-Opción manual, creando un *Web Service*:
+Opción blueprint (recomendada): `render.yaml` ya está en la raíz de este repo, así que en
+Render elegí **New → Blueprint** y conectá `JeronimoPennini/EVIDENCIA`; te va a pedir los
+valores de las variables marcadas `sync: false`. Opción manual, creando un *Web Service*:
 
 | Campo | Valor |
 |---|---|
-| Root Directory | `EvidencIA/backend` |
+| Repository | `JeronimoPennini/EVIDENCIA` (branch `main`) |
+| Root Directory | `backend` |
 | Runtime | Python |
 | Build Command | `pip install -r requirements.txt` |
 | Start Command | `python server_start.py` |
@@ -200,7 +202,18 @@ efímera en contenedores: se reconstruye sola, sin clave ni volumen.
 Chequear: `https://TU-BACKEND.onrender.com/health` → `gemini_configurado: true` y
 `cors_origenes` con tu dominio.
 
-### 2. Frontend (PWA instalable)
+### 2. Frontend (PWA en GitHub Pages)
+
+Una sola vez: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+Después, `.github/workflows/web.yml` compila y publica solo con tocar `frontend/` (o con
+*Actions → Run workflow*, indicando la URL del backend). El sitio queda en
+`https://jeronimopennini.github.io/EVIDENCIA/`.
+
+`--base-href /EVIDENCIA/` es obligatorio: es la subruta del project page, y coincide con la
+que usa el workflow. Si cambiás el nombre del repo, actualizá el workflow y el `base-href`
+local.
+
+Para compilar a mano (o probar antes de mergear):
 
 ```powershell
 .\build_web.bat https://TU-BACKEND.onrender.com     # deja frontend\build\web
@@ -208,12 +221,13 @@ Chequear: `https://TU-BACKEND.onrender.com/health` → `gemini_configurado: true
 
 Equivale a `flutter build web --release --dart-define=API_BASE_URL=https://TU-BACKEND.onrender.com`:
 la URL pública entra en `frontend/lib/config/api_config.dart` (`ApiConfig.baseUrl`) sin tocar código;
-sin el flag sigue usando `http://localhost:8000` para desarrollo.
+sin el flag sigue usando `http://localhost:8000` para desarrollo. Para un build local destined
+a Pages, agregá `--base-href /EVIDENCIA/`.
 
-Subí `frontend/build/web` a cualquier hosting estático **con HTTPS** (GitHub Pages, Cloudflare
-Pages, Netlify). HTTPS es requisito para que el navegador ofrezca *Instalar aplicación* y para el
-service worker; el `web/manifest.json` ya declara nombre, íconos y tema, así que se instala como
-app en Android/Chrome OS y en escritorio.
+CORS: agregá `https://jeronimopennini.github.io` a `ALLOWED_ORIGINS` en Render (el
+`render.yaml` del repo ya lo trae). HTTPS no es opcional: sin él el navegador no ofrece
+*Instalar aplicación* ni registra el service worker; `web/manifest.json` ya declara nombre,
+íconos y tema, así que se instala como app en Android/Chrome OS y en escritorio.
 
 > [!WARNING]
 > API publicada = API abierta: cualquiera que lea la URL puede gastar tu cuota gratuita de Gemini.

@@ -6,14 +6,18 @@ REM ============================================================
 REM  Compila el frontend Flutter Web apuntando a un backend.
 REM
 REM  Uso:
-REM    build_web.bat                                  -> localhost:8000 (probar local)
+REM    build_web.bat                                  -> localhost:8000 + base-href de Pages
 REM    build_web.bat https://mi-api.onrender.com      -> version publica
+REM    build_web.bat https://mi-api.onrender.com root -> sin base-href (dominio propio)
 REM
-REM  El resultado queda en frontend\build\web : se sube tal cual
-REM  a GitHub Pages / Cloudflare Pages / Netlify.
+REM  El resultado queda en frontend\build\web . Para GitHub Pages lo
+REM  normal es dejar que haga el build .github\workflows\web.yml; esto
+REM  sirve para probar local o publicar en otro hosting.
 REM ============================================================
 
 set API_URL=%1
+set BASE_HREF=--base-href=/EVIDENCIA/
+if /i "%2"=="root" set BASE_HREF=
 
 if "%API_URL%"=="" (
   echo Sin URL de API: se compila con el default http://localhost:8000
@@ -24,10 +28,10 @@ if "%API_URL%"=="" (
 cd /d "%~dp0frontend"
 
 if "%API_URL%"=="" (
-  flutter build web --release
+  flutter build web --release %BASE_HREF%
 ) else (
   echo Compilando para API publica: %API_URL%
-  flutter build web --release --dart-define=API_BASE_URL=%API_URL%
+  flutter build web --release %BASE_HREF% --dart-define=API_BASE_URL=%API_URL%
 )
 
 if errorlevel 1 (
