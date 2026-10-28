@@ -75,6 +75,9 @@ class SearchNotifier extends StateNotifier<SearchState> {
     String? dateFrom,
     String? dateTo,
     bool optimizarConIa = true,
+    bool usarVocabulario = true,
+    bool priorizarCalidad = true,
+    List<String>? niveles,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
@@ -88,6 +91,9 @@ class SearchNotifier extends StateNotifier<SearchState> {
         dateFrom: dateFrom,
         dateTo: dateTo,
         optimizarConIa: optimizarConIa,
+        usarVocabulario: usarVocabulario,
+        priorizarCalidad: priorizarCalidad,
+        niveles: niveles,
       );
       state = state.copyWith(
         isLoading: false,

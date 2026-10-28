@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/search_provider.dart';
 import '../providers/synthesis_provider.dart';
 import '../widgets/article_card.dart';
+import '../widgets/vocabulario_jerarquia_panel.dart';
 import 'synthesis_screen.dart';
 
 enum SearchMode { pico, libre }
@@ -32,6 +33,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _filtroEstudio = 'all'; // 'all', 'rct', 'systematic_review'
   String _filtroFecha = 'all'; // 'all', '5_years', '10_years'
   bool _optimizarConIa = true;
+  bool _usarVocabulario = true;
+  bool _priorizarCalidad = true;
   bool _mostrarQueryDetalle = false;
 
   @override
@@ -144,6 +147,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             dateFrom: dateFrom,
             dateTo: dateTo,
             optimizarConIa: _optimizarConIa,
+            usarVocabulario: _usarVocabulario,
+            priorizarCalidad: _priorizarCalidad,
           );
     } else {
       final query = _queryController.text.trim();
@@ -706,6 +711,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
+                title: const Text('Vocabulario controlado DeCS / MeSH'),
+                subtitle: const Text(
+                  'Resuelve P, I, C y O contra descriptores oficiales y repara la query ([MeSH Terms])',
+                  style: TextStyle(fontSize: 11),
+                ),
+                value: _usarVocabulario,
+                onChanged: (v) => setState(() => _usarVocabulario = v),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: const Text('Priorizar calidad de la evidencia'),
+                subtitle: const Text(
+                  'Jerarquía: ETS/HTA > Revisiones sistemáticas y metaanálisis > ECA > cohortes y casos y controles',
+                  style: TextStyle(fontSize: 11),
+                ),
+                value: _priorizarCalidad,
+                onChanged: (v) => setState(() => _priorizarCalidad = v),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
                 title: const Text('Optimizar con IA (Traducción a MeSH/Inglés)'),
                 subtitle: const Text(
                   'Usa Gemini para convertir PICO en una query booleana médica de alta precisión',
@@ -922,6 +949,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
         ),
+        const SizedBox(height: 8),
+
+                VocabularioYJerarquiaPanel(result: result),
         const SizedBox(height: 8),
 
         if (articulos.isEmpty)

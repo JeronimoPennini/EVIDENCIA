@@ -8,5 +8,6 @@ pydantic-settings>=2.16.0
 httpx>=0.28.0
 pydantic>=2.13.5
 google-genai>=2.33.0        # SDK oficial actual (reemplaza google-generativeai)
+truststore>=0.10.0         # certificados del sistema en Windows (Python 3.12+)
 pytest>=8.0.0
 pytest-asyncio>=0.24.0

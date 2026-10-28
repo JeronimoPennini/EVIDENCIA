@@ -24,6 +24,9 @@ class Referencia(BaseModel):
     titulo: str
     autores: str
     año: Optional[int] = None
+    nivel_evidencia: str = Field(default="otros", description="ets | rs_ma | rct | obs | otros")
+    nivel_etiqueta: str = Field(default="Otro tipo de estudio", description="Nivel de evidencia legible")
+    tipos_publicacion: list[str] = Field(default_factory=list, description="Tipos de publicación declarados por PubMed")
 
 
 class SynthesisResponse(BaseModel):
@@ -33,6 +36,10 @@ class SynthesisResponse(BaseModel):
     sintesis: str = Field(..., description="Síntesis en formato Markdown")
     referencias: list[Referencia] = []
     modelo_ia: str
+    distribucion_niveles: dict[str, int] = Field(
+        default_factory=dict,
+        description="Cantidad de artículos sintetizados por nivel de evidencia",
+    )
     advertencia: Optional[str] = Field(
         default="Esta síntesis es generada por IA y no reemplaza el juicio clínico profesional.",
         description="Aviso ético obligatorio",

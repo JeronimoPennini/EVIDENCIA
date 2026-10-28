@@ -29,3 +29,6 @@ frontend/pubspec.lock
 
 # Logs
 *.log
+
+# Caché de vocabulario controlado (DeCS/MeSH) generada en runtime
+backend/data/

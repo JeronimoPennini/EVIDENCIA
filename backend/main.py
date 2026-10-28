@@ -22,12 +22,23 @@ app = FastAPI(
     redoc_url="/redoc",     # ReDoc
 )
 
-# CORS — permite que Flutter web se comunique con el backend
+# CORS — permite que Flutter web se comunique con el backend.
+# En local alcanza con la regex de localhost (cualquier puerto efímero de
+# `flutter run -d chrome`). En producción se agrega el dominio público del
+# frontend en ALLOWED_ORIGINS.
+_origenes = settings.origins_list
+_origenes_abiertos = settings.origins_abiertos
+if _origenes_abiertos:
+    _origenes = [o for o in _origenes if o != "*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.origins_list,
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
-    allow_credentials=True,
+    allow_origins=_origenes,
+    allow_origin_regex=(settings.cors_origin_regex or None)
+    if not _origenes_abiertos
+    else r".*",
+    # Con '*' los navegadores descartan una respuesta que declare credenciales.
+    allow_credentials=not _origenes_abiertos,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -40,11 +51,21 @@ app.include_router(synthesis.router)
 @app.get("/health", tags=["Sistema"], summary="Estado del servicio")
 async def health_check():
     """Verifica que el backend está activo y muestra la configuración activa."""
+    from app.services import decs_service
+    from app.services.pico_service import _gemini_disponible
+
     return {
         "status": "ok",
         "version": "0.1.0",
         "servicio": "EvidencIA API",
-        "gemini_configurado": bool(settings.gemini_api_key),
-        "ncbi_api_key_configurada": bool(settings.ncbi_api_key),
+        "gemini_configurado": _gemini_disponible(settings),
+        "ncbi_api_key_configurada": bool(
+            (settings.ncbi_api_key or "").strip()
+        ) and not settings.ncbi_api_key.startswith("tu_clave"),
         "modelo_ia": settings.gemini_model,
+        "vocabulario": await decs_service.estado_vocabulario(),
+        # Diagnóstico de despliegue: confirma que el origen público está autorizado.
+        "cors_origenes": settings.origins_list,
+        "cors_abierto": settings.origins_abiertos,
+        "cors_regex": bool(settings.cors_origin_regex),
     }

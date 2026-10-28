@@ -1,0 +1,45 @@
+# EvidencIA — Blueprint de Render (https://render.com/docs/blueprint-spec)
+#
+# ⚠️ Render solo lee este archivo si está en la RAÍZ del repositorio que conectás.
+# Tu repo git es la carpeta `DRAIV` (EvidencIA es un subdirectorio), así que:
+#     copy EvidencIA\render.yaml ..\render.yaml
+# y ajustá `rootDir` si cambiás la estructura.
+#
+# Alternativa sin blueprint: crear el servicio desde el dashboard de Render con
+#     Root Directory   = EvidencIA/backend
+#     Runtime          = Python
+#     Build Command    = pip install -r requirements.txt
+#     Start Command    = python server_start.py
+#     Health Check     = /health
+#
+# Después de desplegar, copiá la URL pública (https://*.onrender.com) y:
+#   1) la agregás a ALLOWED_ORIGINS en Render (Environment)
+#   2) la pasás al frontend:  flutter build web --release --dart-define=API_BASE_URL=<esa URL>
+
+services:
+  - type: web
+    name: evidencia-api
+    runtime: python
+    rootDir: EvidencIA/backend
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server_start.py
+    healthCheckPath: /health
+    envVars:
+      # Versiones explícitas: la imagen base de Render cambia con el tiempo
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      # --- Secretos: sync:false = se cargan a mano en el dashboard, nunca en git ---
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: NCBI_API_KEY
+        sync: false
+      - key: DECS_API_KEY
+        sync: false
+      # --- Configuración pública ---
+      # Pegá acá el origen donde cuelgues el frontend, separado por comas.
+      - key: ALLOWED_ORIGINS
+        value: http://localhost:3000
+      - key: PRIORIZAR_CALIDAD_POR_DEFECTO
+        value: "true"
