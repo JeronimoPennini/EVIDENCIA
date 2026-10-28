@@ -11,13 +11,15 @@ on:
     branches: [main]
     paths:
       - "frontend/**"
-      - ".github/workflows/web.yml"
+  # Se excluye este propio archivo de los disparadores: editar el workflow no
+  # debería publicar nada. El primer despliegue (y los que sigan) se lanzan
+  # desde Actions → Web → GitHub Pages → Run workflow.
   workflow_dispatch:
     inputs:
       api_base_url:
         description: "URL pública del backend (Render), sin barra final"
         required: false
-        default: "https://evidencia-api.onrender.com"
+        default: "https://evidencia-pljv.onrender.com"
 
 permissions:
   contents: read
@@ -53,7 +55,7 @@ jobs:
         run: >-
           flutter build web --release
           --base-href /EVIDENCIA/
-          --dart-define=API_BASE_URL=${{ inputs.api_base_url || 'https://evidencia-api.onrender.com' }}
+          --dart-define=API_BASE_URL=${{ inputs.api_base_url || 'https://evidencia-pljv.onrender.com' }}
 
       - name: Configurar Pages
         uses: actions/configure-pages@v5

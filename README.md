@@ -13,10 +13,11 @@ EVIDENCIA/
 ├── render.yaml       # Blueprint de Render (está en la raíz del repo a propósito)
 ├── build_web.bat     # flutter build web --dart-define=API_BASE_URL=...
 ├── iniciar_proyecto.bat / iniciar_backend.bat / iniciar_frontend.bat
+├── Dockerfile        # Imagen del backend (contexto = raíz del repo; lo usa Render)
+├── .dockerignore
 ├── backend/          # API Python + FastAPI
 │   ├── main.py
 │   ├── server_start.py   # arranque para hosting (respeta PORT)
-│   ├── Dockerfile / .dockerignore
 │   ├── requirements.txt
 │   ├── .env.example  # Plantilla de claves (nunca versionar .env)
 │   ├── data/         # Caché de vocabulario DeCS/MeSH (generada, no versionada)
@@ -178,21 +179,27 @@ valores de las variables marcadas `sync: false`. Opción manual, creando un *Web
 | Campo | Valor |
 |---|---|
 | Repository | `JeronimoPennini/EVIDENCIA` (branch `main`) |
-| Root Directory | `backend` |
-| Runtime | Python |
-| Build Command | `pip install -r requirements.txt` |
-| Start Command | `python server_start.py` |
+| Runtime | **Docker** |
+| Dockerfile Path | `./Dockerfile` |
+| Build Context Path | `/` (la raíz del repo) |
 | Health Check Path | `/health` |
+
+El `Dockerfile` vive en la raíz y usa rutas `backend/...` **porque el contexto de build es la
+raíz del repo**. Si alguna vez ves `Exited with status 1 while building your code` en 40 s, casi
+siempre es el Build Context mal puesto: el `COPY backend/requirements.txt` no encuentra nada.
+
+Alternativa sin Docker (runtime Python): Root Directory `backend`, Build Command
+`pip install -r requirements.txt`, Start Command `python server_start.py`.
 
 En *Environment* cargá `GEMINI_API_KEY` (y opcionalmente `NCBI_API_KEY`, `DECS_API_KEY`) y
 `ALLOWED_ORIGINS` con el dominio donde va a vivir el frontend. `server_start.py` lee el
 `PORT` que inyecta el host y deja el keep-alive en 120 s para que la síntesis (~20-30 s) no
 se corte.
 
-Con Docker en vez del runtime Python (Railway u otro host): `docker build -t evidencia-api ./backend`
-y `CMD` ya corre `server_start.py`. En Railway el Dockerfile se busca en la raíz del directorio
-de origen, así que o subís `backend/` con `railway up`, o apuntá `RAILWAY_DOCKERFILE_PATH` /
-`build.dockerfilePath` al archivo dentro del repo.
+Build local de la imagen (mismo contexto que usa Render): `docker build -t evidencia-api .`
+desde la raíz del repo, y `docker run --rm -p 8000:8000 --env-file backend/.env evidencia-api`.
+En Railway el Dockerfile se busca en la raíz del directorio de origen, así que o subís la raíz
+con `railway up`, o apuntá `RAILWAY_DOCKERFILE_PATH` al `Dockerfile` del repo.
 
 Cosas del plan gratuito de Render: el servicio **se duerme a los 15 minutos sin tráfico** y
 despertar toma ~1 minuto → el primer pedido de la jornada falla o tarda. Si eso molesta, un ping

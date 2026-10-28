@@ -1,0 +1,21 @@
+# Contexto de build = raíz del repo. Se excluye todo lo que no necesita la API.
+.git
+.github
+frontend/
+docs/
+*.md
+render.yaml
+
+# Secretos y basura local
+**/.env
+**/.env.*
+!**/.env.example
+backend/data/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.venv/
+**/venv/
+backend/tests/
+Dockerfile
+.dockerignore
