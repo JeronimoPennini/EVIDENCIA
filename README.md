@@ -46,17 +46,24 @@ EVIDENCIA/
 
 ## Inicio rápido
 
-### Opción A (Recomendada): Lanzador en 1 clic
-Podés hacer doble clic en el archivo:
-* `iniciar_proyecto.bat`: Abre automáticamente el Backend y el Frontend en dos ventanas independientes.
+> [!TIP]
+> **La app ya está publicada y funcionando:** https://jeronimopennini.github.io/EVIDENCIA/
+> Con abrir ese link en Chrome ya podés probarla sin instalar nada (el primer
+> llamado tarda ~1 minuto porque el plan free de Render despierta el backend).
 
-O si preferís ejecutarlos por separado con doble clic:
-* `iniciar_backend.bat`
-* `iniciar_frontend.bat`
+### Opción A (más simple): probar en Chrome contra el backend público
+Doble clic en `probar_en_nube.bat`. No requiere backend local: compila el
+frontend apuntando a `https://evidencia-pljv.onrender.com` y abre Chrome.
+La primera compilación tarda entre 40 y 90 segundos; parece congelado pero no lo está.
+
+### Opción B: lanzador completo en 1 clic
+* `iniciar_proyecto.bat`: abre el Backend local (puerto 8000) y el Frontend en dos ventanas.
+
+Por separado: `iniciar_backend.bat` y `iniciar_frontend.bat`.
 
 ---
 
-### Opción B: Inicio manual desde terminales
+### Opción C: inicio manual desde terminales
 
 > [!IMPORTANT]
 > El backend es un servidor que **debe quedar corriendo de forma continua**. Por ello, requiere su propia terminal abierta. Para el frontend debés abrir una **segunda terminal**.
