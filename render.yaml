@@ -26,9 +26,11 @@ services:
     startCommand: python server_start.py
     healthCheckPath: /health
     envVars:
-      # Versiones explícitas: la imagen base de Render cambia con el tiempo
-      - key: PYTHON_VERSION
-        value: 3.12.7
+      # No se fija PYTHON_VERSION a propósito: pedir una versión que Render no
+      # tiene precompilada (p.ej. 3.12.7) lo hace compilar Python desde fuente,
+      # y el primer deploy se estira minutos o falla. La versión default de
+      # Render sirve; si hace falta pinear, usar una que el dashboard acepte
+      # sin build (se ve en Settings → Runtime).
       # --- Secretos: sync:false = se cargan a mano en el dashboard, nunca en git ---
       - key: GEMINI_API_KEY
         sync: false
