@@ -105,6 +105,7 @@ vocabulario controlado y la búsqueda por niveles, y desactiva la optimización 
 |---|---|---|
 | `GEMINI_API_KEY` | Clave Google Gemini (gratuita). Necesaria para optimizar la query y generar la síntesis IA | https://aistudio.google.com/app/apikey |
 | `GEMINI_MODEL` | Modelo usado (por defecto `gemini-3.5-flash`; si ya no está disponible el backend prueba respaldos) | — |
+| `GEMINI_MODELOS` | Cadena de modelos a probar, separada por coma. Vacía = la del código. Sirve para seguir a Google cuando retira un nombre, sin redeployar | — |
 | `NCBI_API_KEY` | Clave NCBI (opcional, aumenta el rate limit de PubMed) | https://www.ncbi.nlm.nih.gov/account/ |
 | `NCBI_EMAIL` | Email de contacto para NCBI | Tu email |
 | `DECS_API_KEY` | Clave DeCS de BIREME/OPS (opcional). Sin ella se usa MeSH abierto de NLM | https://decs.bvsalud.org/ (licencia gratuita) |
@@ -115,6 +116,12 @@ vocabulario controlado y la búsqueda por niveles, y desactiva la optimización 
 
 > [!NOTE]
 > Sin `GEMINI_API_KEY` la búsqueda sigue funcionando: se resuelve el vocabulario con el diccionario local + NLM MeSH Lookup y se busca por niveles en PubMed. Solo desactivá "Optimizar con IA" o dejá que el backend lo detecte solo.
+
+> [!TIP]
+> El backend recuerda qué modelo de Gemini respondió bien y lo prueba primero en la
+> consulta siguiente (los 503 de saturación duran minutos). Si ese modelo vuelve a
+> fallar, lo suelta y recorre la cadena. El modelo en uso y la cadena completa se ven
+> en `/health` → `gemini`. Un 401 no rota: rechaza la clave, no el modelo.
 
 ---
 

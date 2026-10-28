@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     # Google Gemini
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.5-flash"
+    # Cadena de modelos a probar, separada por comas. Vacía = la lista por defecto
+    # del código. Sirve para seguir a Google cuando retira un nombre, sin redeployar:
+    #   GEMINI_MODELOS=gemini-3.5-flash,gemini-flash-latest,gemini-3.8-flash
+    gemini_modelos: str = ""
 
     # Vocabulario controlado DeCS (BIREME/OPS). Sin clave se usa MeSH abierto (NLM/NCBI).
     decs_api_key: str = ""

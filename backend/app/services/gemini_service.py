@@ -29,6 +29,7 @@ except ImportError:  # pragma: no cover - other platforms
     _SSL_VERIFY = True
 
 # Orden de respaldo si el modelo configurado no está disponible para la cuenta.
+# Se puede reemplazar entero sin tocar código con la variable GEMINI_MODELOS.
 _MODELOS_RESPALDO = ("gemini-3.5-flash", "gemini-flash-latest", "gemini-3.8-flash")
 
 # Códigos que conviene reintentar antes de pasar al siguiente modelo.
@@ -36,6 +37,10 @@ _TRANSITORIOS = ("503", "429", "unavailable", "resource_exhausted", "high demand
 
 # Modelo que respondió por última vez (para reportarlo en la respuesta).
 _modelo_activo: str = ""
+
+# Modelo "pegajoso": el último que respondió, para no volver a chocar contra el
+# primero de la lista en cada consulta. Se despeja apenas falla.
+_modelo_fijado: str = ""
 
 # La clave fue rechazada por Google (401) en el último intento.
 _clave_rechazada: bool = False
@@ -82,6 +87,8 @@ def estado_gemini() -> dict:
         "api_key_aceptada": configurada and not _clave_rechazada,
         "modelo_configurado": settings.gemini_model,
         "modelo_usado": _modelo_activo or None,
+        "modelo_pegajoso": _modelo_fijado or None,
+        "cadena_de_modelos": _candidatos(),
     }
 
 
@@ -109,10 +116,31 @@ def _es_transitorio(error: Exception) -> bool:
     return any(marca in texto for marca in _TRANSITORIOS)
 
 
+def _soltar_si_fijado(modelo: str) -> None:
+    """Deja de preferir un modelo que recién falló; el próximo éxito lo reemplaza."""
+    global _modelo_fijado
+    if modelo == _modelo_fijado:
+        _modelo_fijado = ""
+
+
 def _candidatos() -> list[str]:
-    """Modelo configurado primero, luego los respaldos sin duplicar."""
-    principal = (get_settings().gemini_model or "gemini-3.5-flash").strip()
-    orden = [principal] + [m for m in _MODELOS_RESPALDO if m != principal]
+    """
+    Modelos a probar, en orden.
+
+    El último que respondió va primero: Gemini satura por modelo durante minutos,
+    y volver a arrancar desde el configurado en cada consulta significaba chocar
+    otra vez contra el mismo 503 y pagar el reintento.
+    """
+    settings = get_settings()
+    lista = [m.strip() for m in (settings.gemini_modelos or "").split(",") if m.strip()]
+    if not lista:
+        principal = (settings.gemini_model or "gemini-3.5-flash").strip()
+        lista = [principal] + [m for m in _MODELOS_RESPALDO if m != principal]
+
+    orden: list[str] = []
+    for modelo in [_modelo_fijado] + lista:
+        if modelo and modelo not in orden:
+            orden.append(modelo)
     return orden
 
 
@@ -122,7 +150,7 @@ async def generar_sintesis(prompt: str) -> str:
     Prueba el modelo configurado y, si devuelve 404 (obsoleto) o 503/429 (saturado),
     intenta con los modelos de respaldo antes de fallar.
     """
-    global _modelo_activo, _clave_rechazada
+    global _modelo_activo, _modelo_fijado, _clave_rechazada
     cliente = _get_client()
     errores: list[str] = []
 
@@ -141,8 +169,10 @@ async def generar_sintesis(prompt: str) -> str:
                 texto = (respuesta.text or "").strip()
                 if texto:
                     _modelo_activo = modelo
+                    _modelo_fijado = modelo
                     return texto
                 errores.append(f"{modelo}: respuesta vacía")
+                _soltar_si_fijado(modelo)
                 break
             except Exception as error:  # noqa: BLE001 - se re-intenta con otro modelo
                 errores.append(f"{modelo}: {type(error).__name__}: {str(error)[:160]}")
@@ -156,6 +186,7 @@ async def generar_sintesis(prompt: str) -> str:
                 if _es_transitorio(error) and intento + 1 < reintentos:
                     await asyncio.sleep(2.0 * (intento + 1))
                     continue
+                _soltar_si_fijado(modelo)
                 break
 
     raise RuntimeError(

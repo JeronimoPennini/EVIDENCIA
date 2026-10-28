@@ -203,3 +203,77 @@ def test_estado_gemini_reporta_sin_exponer_la_clave(monkeypatch):
 
     monkeypatch.setattr(gemini_service, "_clave_rechazada", True, raising=True)
     assert gemini_service.estado_gemini()["api_key_aceptada"] is False
+# ------------------------------------------------------- modelo pegajoso y cadena
+
+
+def _reset(monkeypatch):
+    monkeypatch.setattr(gemini_service, "_modelo_activo", "", raising=True)
+    monkeypatch.setattr(gemini_service, "_modelo_fijado", "", raising=True)
+    monkeypatch.setattr(gemini_service, "_clave_rechazada", False, raising=True)
+
+
+
+def _ajustar_modelos(monkeypatch, modelos):
+    """Fija la cadena desde settings, sin parchar _candidatos."""
+    from app.config import Settings
+
+    monkeypatch.setattr(
+        gemini_service,
+        "get_settings",
+        lambda: Settings(gemini_api_key="x", gemini_modelos=modelos),
+    )
+
+
+def test_el_modelo_que_respondio_queda_primero_en_la_siguiente(monkeypatch):
+    """
+    Gemini satura por modelo durante minutos. Sin memoria, cada consulta volvía a
+    probar el configurado, recibía su 503 y pagaba el reintento antes de llegar al
+    que sí estaba respondiendo.
+    """
+    _reset(monkeypatch)
+    _ajustar_modelos(monkeypatch, "modelo-a,modelo-b")
+    registro = []
+    _instalar(
+        monkeypatch,
+        {"modelo-a": RuntimeError("503 UNAVAILABLE: high demand"), "modelo-b": "texto"},
+        registro,
+    )
+    asyncio.run(gemini_service.generar_sintesis("p"))
+
+    assert gemini_service._modelo_fijado == "modelo-b"
+    assert [m for m, _, _ in registro] == ["modelo-a", "modelo-a", "modelo-b"]
+
+    # Segunda consulta: arranca por el que funcionó y ni toca el saturado.
+    registro2 = []
+    _instalar(monkeypatch, {"modelo-a": "no deberia llegar", "modelo-b": "otro"}, registro2)
+    asyncio.run(gemini_service.generar_sintesis("p"))
+
+    assert [m for m, _, _ in registro2] == ["modelo-b"]
+
+
+def test_un_fallo_suelta_el_modelo_pegajoso(monkeypatch):
+    _reset(monkeypatch)
+    _ajustar_modelos(monkeypatch, "modelo-b,modelo-a")
+    gemini_service._modelo_fijado = "modelo-b"
+    _instalar(monkeypatch, {"modelo-b": RuntimeError("503 UNAVAILABLE"), "modelo-a": "ok"}, [])
+
+    asyncio.run(gemini_service.generar_sintesis("p"))
+
+    assert gemini_service._modelo_fijado == "modelo-a"
+
+
+def test_gemini_modelos_reemplaza_la_cadena_sin_tocar_codigo(monkeypatch):
+    _ajustar_modelos(monkeypatch, "m1, m2 ,")
+
+    assert gemini_service._candidatos() == ["m1", "m2"]
+
+
+def test_sin_gemini_modelos_usa_el_configurado_mas_los_respaldos(monkeypatch):
+    from app.config import Settings
+
+    monkeypatch.setattr(gemini_service, "get_settings", lambda: Settings(gemini_api_key="x"))
+
+    candidatos = gemini_service._candidatos()
+
+    assert candidatos[0] == "gemini-3.5-flash"
+    assert len(set(candidatos)) == len(candidatos)

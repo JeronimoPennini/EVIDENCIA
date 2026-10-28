@@ -49,3 +49,9 @@ services:
         value: http://localhost:3000,http://localhost:8080,https://jeronimopennini.github.io
       - key: PRIORIZAR_CALIDAD_POR_DEFECTO
         value: "true"
+      # OPCIONAL: cadena de modelos de Gemini a probar, separada por coma.
+      # Se deja vacía para usar la del código (gemini_service._MODELOS_RESPALDO).
+      # Útil cuando Google retira un nombre: se corrige desde el dashboard y
+      # guarda efecto en el próximo reinicio, sin pushear código.
+      # - key: GEMINI_MODELOS
+      #   value: "gemini-3.5-flash,gemini-flash-latest,gemini-3.8-flash"
